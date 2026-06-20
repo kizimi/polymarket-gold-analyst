@@ -9,9 +9,12 @@ def get_gold_price() -> dict:
     Returns:
         {"price": float, "change_pct": float, "timestamp": str ISO8601}
     """
-    response = httpx.get("https://api.metals.live/v1/spot/gold", timeout=10)
-    response.raise_for_status()
-    price = float(response.json()[0].get("gold", 0))
+    try:
+        response = httpx.get("https://api.metals.live/v1/spot/gold", timeout=10)
+        response.raise_for_status()
+        price = float(response.json()[0].get("gold", 0))
+    except Exception:
+        price = 0.0
 
     try:
         hist = yf.Ticker("GC=F").history(period="2d")

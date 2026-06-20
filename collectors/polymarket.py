@@ -27,9 +27,12 @@ def _categorize(title: str) -> str:
 def get_gold_related_events() -> list[dict]:
     """Fetch Polymarket events related to gold price drivers."""
     params = {"limit": 100, "active": "true", "order": "volume", "ascending": "false"}
-    resp = httpx.get("https://gamma-api.polymarket.com/events", params=params, timeout=15)
-    resp.raise_for_status()
-    data = resp.json()
+    try:
+        resp = httpx.get("https://gamma-api.polymarket.com/events", params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        return []
     events = data.get("events", data) if isinstance(data, dict) else data
 
     result = []
