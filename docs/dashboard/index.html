@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Gold Fund Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 24px; }
+    h1 { font-size: 1.4rem; color: #58a6ff; margin-bottom: 4px; }
+    .sub { color: #8b949e; font-size: 0.8rem; margin-bottom: 20px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; }
+    .stat-l { font-size: 0.7rem; color: #8b949e; margin-bottom: 4px; }
+    .stat-v { font-size: 1.3rem; font-weight: 600; }
+    .pos { color: #3fb950; } .neg { color: #f85149; } .neu { color: #e6edf3; }
+    .tbtn-wrap { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tbtn { background: #21262d; border: 1px solid #30363d; color: #8b949e; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; }
+    .tbtn.active { background: #1f6feb; border-color: #58a6ff; color: #fff; }
+    .chart-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 20px; height: 380px; position: relative; }
+    .tbl { background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #21262d; padding: 8px 14px; text-align: left; font-size: 0.7rem; color: #8b949e; }
+    td { padding: 8px 14px; border-top: 1px solid #21262d; font-size: 0.8rem; }
+    .badge { padding: 2px 7px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+    .BUY { background: #1a4731; color: #3fb950; }
+    .SELL { background: #3d1a1a; color: #f85149; }
+    .HOLD { background: #1c2028; color: #8b949e; }
+    .loading { text-align: center; padding: 32px; color: #8b949e; }
+    .empty { text-align: center; padding: 48px 24px; color: #8b949e; }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-title { font-size: 1rem; margin-bottom: 8px; color: #e6edf3; }
+    .empty-sub { font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>&#x1F4C8; AI Gold Fund Dashboard</h1>
+  <p class="sub">Polymarket &#x4FE1;&#x53F7;&#x9A71;&#x52A8; &middot; &#x6A21;&#x62DF;&#x57FA;&#x91D1; $10,000 &#x8D77;</p>
+  <div id="stats" class="stats"><div class="loading">&#x52A0;&#x8F7D;&#x4E2D;...</div></div>
+  <div class="tbtn-wrap">
+    <button class="tbtn active" onclick="filt(7,this)">7&#x65E5;</button>
+    <button class="tbtn" onclick="filt(30,this)">30&#x65E5;</button>
+    <button class="tbtn" onclick="filt(9999,this)">&#x5168;&#x90E8;</button>
+  </div>
+  <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th>&#x65E5;&#x671F;</th>
+        <th>&#x64CD;&#x4F5C;</th>
+        <th>&#x4FE1;&#x53F7;</th>
+        <th>&#x91D1;&#x4EF7;</th>
+        <th>&#x8D26;&#x6237;&#x5024;</th>
+        <th>&#x6536;&#x76CA;</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+<script>
+// Detect environment: GitHub Pages vs local
+(function() {
+  var host = location.hostname;
+  var isGHPages = host.endsWith('.github.io') || host.endsWith('.github.com');
+  var RAW;
+  if (isGHPages) {
+    var parts = location.pathname.split('/').filter(Boolean);
+    var repoName = parts[0] || '';
+    var owner = host.replace('.github.io', '').replace('.github.com', '');
+    RAW = 'https://raw.githubusercontent.com/' + owner + '/' + repoName + '/main/portfolio.jsonl';
+  } else {
+    // Local or custom domain: relative path from docs/dashboard/index.html to repo root
+    RAW = '../../portfolio.jsonl';
+  }
+  window._PORTFOLIO_URL = RAW;
+})();
+
+var all = [], ch = null;
+
+async function init() {
+  try {
+    var r = await fetch(window._PORTFOLIO_URL + '?t=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var txt = await r.text();
+    txt = txt.trim();
+    if (!txt) {
+      showEmpty('数据文件为空', '运行 analyst.py 生成第一条记录后刷新页面');
+      return;
+    }
+    all = txt.split('\n').filter(Boolean).map(function(line) { return JSON.parse(line); });
+    if (!all.length) {
+      showEmpty('数据文件为空', '运行 analyst.py 生成第一条记录后刷新页面');
+      return;
+    }
+    render(all);
+  } catch(e) {
+    showEmpty('加载失败: ' + e.message, '请检查 portfolio.jsonl 是否存在，或稍后重试');
+  }
+}
+
+function showEmpty(title, sub) {
+  document.getElementById('stats').innerHTML =
+    '<div class="empty">' +
+      '<div class="empty-icon">&#x1F4CA;</div>' +
+      '<div class="empty-title">' + title + '</div>' +
+      '<div class="empty-sub">' + sub + '</div>' +
+    '</div>';
+  if (ch) { ch.destroy(); ch = null; }
+  document.getElementById('tbody').innerHTML =
+    '<tr><td colspan="6" class="empty">暂无数据</td></tr>';
+}
+
+function filt(days, btn) {
+  document.querySelectorAll('.tbtn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  if (!all.length) return;
+  var cut = new Date(); cut.setDate(cut.getDate() - days);
+  var filtered = all.filter(function(d) { return new Date(d.date) >= cut; });
+  render(filtered.length ? filtered : all);
+}
+
+function fmt(n, d) {
+  if (d === undefined) d = 2;
+  return n.toLocaleString('en', {minimumFractionDigits: d, maximumFractionDigits: d});
+}
+
+function render(data) {
+  if (!data.length) {
+    showEmpty('该时间段无数据', '请选择更长的时间范围');
+    return;
+  }
+  var last = data[data.length - 1];
+  var pnl = last.total_value - 10000;
+  var pct = (pnl / 100).toFixed(2);
+  var cls = pnl >= 0 ? 'pos' : 'neg';
+  var s = pnl >= 0 ? '+' : '';
+
+  document.getElementById('stats').innerHTML =
+    '<div class="stat"><div class="stat-l">账户总值</div><div class="stat-v neu">$' + fmt(last.total_value) + '</div></div>' +
+    '<div class="stat"><div class="stat-l">累计收益</div><div class="stat-v ' + cls + '">' + s + '$' + fmt(Math.abs(pnl)) + '</div></div>' +
+    '<div class="stat"><div class="stat-l">收益率</div><div class="stat-v ' + cls + '">' + s + pct + '%</div></div>' +
+    '<div class="stat"><div class="stat-l">今日金价</div><div class="stat-v neu">$' + fmt(last.gold_price, 0) + '</div></div>' +
+    '<div class="stat"><div class="stat-l">今日信号</div><div class="stat-v neu">' + last.signal_score + '/10</div></div>' +
+    '<div class="stat"><div class="stat-l">运行天数</div><div class="stat-v neu">' + data.length + ' 天</div></div>';
+
+  var labels = data.map(function(d) { return d.date; });
+  var vals   = data.map(function(d) { return d.total_value; });
+  var prices = data.map(function(d) { return d.gold_price; });
+  var buys   = data.map(function(d, i) { return d.action === 'BUY'  ? vals[i] : null; });
+  var sells  = data.map(function(d, i) { return d.action === 'SELL' ? vals[i] : null; });
+
+  if (ch) ch.destroy();
+  ch = new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: '账户价值',
+          data: vals,
+          borderColor: '#58a6ff',
+          backgroundColor: 'rgba(88,166,255,0.07)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          yAxisID: 'y',
+          pointRadius: 0,
+          pointHoverRadius: 4
+        },
+        {
+          label: '黄金价格',
+          data: prices,
+          borderColor: '#e3b341',
+          borderDash: [5, 5],
+          borderWidth: 1.5,
+          fill: false,
+          tension: 0.3,
+          yAxisID: 'y2',
+          pointRadius: 0,
+          pointHoverRadius: 4
+        },
+        {
+          label: '买入',
+          data: buys,
+          pointStyle: 'triangle',
+          pointRadius: 9,
+          pointBackgroundColor: '#3fb950',
+          borderWidth: 0,
+          showLine: false,
+          yAxisID: 'y'
+        },
+        {
+          label: '卖出',
+          data: sells,
+          pointStyle: 'triangle',
+          pointRadius: 9,
+          pointRotation: 180,
+          pointBackgroundColor: '#f85149',
+          borderWidth: 0,
+          showLine: false,
+          yAxisID: 'y'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#8b949e', font: { size: 10 } }
+        },
+        tooltip: {
+          backgroundColor: '#161b22',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#e6edf3',
+          bodyColor: '#8b949e'
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#8b949e', maxTicksLimit: 8 },
+          grid: { color: '#21262d' }
+        },
+        y: {
+          position: 'left',
+          ticks: { color: '#58a6ff', callback: function(v) { return '$' + v.toLocaleString(); } },
+          grid: { color: '#21262d' }
+        },
+        y2: {
+          position: 'right',
+          ticks: { color: '#e3b341', callback: function(v) { return '$' + v.toLocaleString(); } },
+          grid: { drawOnChartArea: false }
+        }
+      }
+    }
+  });
+
+  document.getElementById('tbody').innerHTML = data.slice().reverse().slice(0, 30).map(function(d) {
+    var p = d.total_value - 10000;
+    var ps = p >= 0 ? '+' : '';
+    return '<tr>' +
+      '<td>' + d.date + '</td>' +
+      '<td><span class="badge ' + d.action + '">' + d.action + '</span></td>' +
+      '<td>' + d.signal_score + '</td>' +
+      '<td>$' + fmt(d.gold_price, 0) + '</td>' +
+      '<td>$' + fmt(d.total_value) + '</td>' +
+      '<td class="' + (p >= 0 ? 'pos' : 'neg') + '">' + ps + '$' + fmt(Math.abs(p)) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+init();
+</script>
+</body>
+</html>
