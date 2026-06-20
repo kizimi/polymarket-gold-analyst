@@ -22,15 +22,16 @@ def generate_svg_chart(history: list[PortfolioState], output_path: str = "chart.
     fig.patch.set_facecolor(_BG)
     ax1.set_facecolor(_BG)
 
-    ax1.plot(dates, values, color=_BLUE, linewidth=2, label="账户价值 (USD)")
-    ax1.set_ylabel("账户价值 ($)", color=_BLUE, fontsize=9)
+    ax1.plot(dates, values, color=_BLUE, linewidth=2, label="Portfolio (USD)")
+    ax1.set_ylabel("Portfolio ($)", color=_BLUE, fontsize=9)
     ax1.tick_params(axis="y", labelcolor=_BLUE)
     ax1.tick_params(axis="x", labelcolor=_MUTED)
     ax1.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+    ax1.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=3, maxticks=10))
 
     ax2 = ax1.twinx()
-    ax2.plot(dates, prices, color=_GOLD, linewidth=1.5, linestyle="--", label="黄金价格 ($/oz)")
-    ax2.set_ylabel("黄金价格 ($/oz)", color=_GOLD, fontsize=9)
+    ax2.plot(dates, prices, color=_GOLD, linewidth=1.5, linestyle="--", label="Gold ($/oz)")
+    ax2.set_ylabel("Gold ($/oz)", color=_GOLD, fontsize=9)
     ax2.tick_params(axis="y", labelcolor=_GOLD)
 
     for date, val, entry in zip(dates, values, history):
