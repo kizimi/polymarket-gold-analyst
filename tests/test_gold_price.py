@@ -1,41 +1,24 @@
 from unittest.mock import patch, MagicMock
-import pandas as pd
 from collectors.gold_price import get_gold_price
 
 
-def _mock_metals(price: float):
-    m = MagicMock()
-    m.json.return_value = [{"gold": price}]
-    m.raise_for_status = MagicMock()
-    return m
-
-
-def _mock_yf(today: float, yesterday: float):
-    t = MagicMock()
-    t.history.return_value = pd.DataFrame(
-        {"Close": [yesterday, today]},
-        index=pd.date_range("2026-06-17", periods=2),
-    )
-    return t
-
-
 def test_returns_required_keys():
-    with patch("httpx.get", return_value=_mock_metals(3340.5)):
-        with patch("yfinance.Ticker", return_value=_mock_yf(3340.5, 3313.8)):
-            result = get_gold_price()
+    with patch("collectors.gold_price._price_from_yfinance", return_value=(3340.5, 0.81)):
+        result = get_gold_price()
     assert "price" in result and "change_pct" in result and "timestamp" in result
 
 
-def test_price_is_positive_float():
-    with patch("httpx.get", return_value=_mock_metals(3340.5)):
-        with patch("yfinance.Ticker", return_value=_mock_yf(3340.5, 3313.8)):
-            result = get_gold_price()
-    assert isinstance(result["price"], float) and result["price"] > 0
+def test_price_from_yfinance_primary():
+    with patch("collectors.gold_price._price_from_yfinance", return_value=(3340.5, 0.81)):
+        result = get_gold_price()
+    assert result["price"] == 3340.5
+    assert result["change_pct"] == 0.81
 
 
-def test_change_pct_calculation():
-    with patch("httpx.get", return_value=_mock_metals(3340.5)):
-        with patch("yfinance.Ticker", return_value=_mock_yf(3340.5, 3313.8)):
+def test_falls_back_to_metals_live_when_yfinance_fails():
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = [{"gold": 3320.0}]
+    with patch("collectors.gold_price._price_from_yfinance", side_effect=Exception("yf down")):
+        with patch("collectors.gold_price.httpx.get", return_value=mock_resp):
             result = get_gold_price()
-    expected = round((3340.5 - 3313.8) / 3313.8 * 100, 2)
-    assert abs(result["change_pct"] - expected) < 0.01
+    assert result["price"] == 3320.0
