@@ -4,8 +4,8 @@ from pathlib import Path
 
 PORTFOLIO_PATH = "portfolio.jsonl"
 INITIAL_CASH = 10000.0
-BUY_THRESHOLD = 7.0
-SELL_THRESHOLD = 4.0
+BUY_THRESHOLD = 6.0
+SELL_THRESHOLD = 3.5
 
 
 @dataclass
