@@ -20,3 +20,4 @@
 {"date": "2026-07-06", "gold_price": 4176.39990234375, "signal_score": 6.0, "action": "HOLD", "shares": 2.410533, "cash": 0.0, "total_value": 10067.35}
 {"date": "2026-07-07", "gold_price": 4143.5, "signal_score": 6.0, "action": "HOLD", "shares": 2.410533, "cash": 0.0, "total_value": 9988.04}
 {"date": "2026-07-08", "gold_price": 4133.2001953125, "signal_score": 3.0, "action": "SELL", "shares": 0.0, "cash": 9963.22, "total_value": 9963.22}
+{"date": "2026-07-09", "gold_price": 4066.39990234375, "signal_score": 3.0, "action": "HOLD", "shares": 0.0, "cash": 9963.22, "total_value": 9963.22}
